@@ -1,0 +1,54 @@
+import os
+import pandas as pd
+
+CSV_PATH = "C:/Users/konra/Documents/antigravity/vibrant-brahmagupta/export-final.csv"
+
+def main():
+    if not os.path.exists(CSV_PATH):
+        print(f"CSV not found at {CSV_PATH}")
+        return
+        
+    df = pd.read_csv(CSV_PATH)
+    
+    # Ensure numeric columns are cleaned and numeric
+    df['PC Ungraded (Raw)'] = pd.to_numeric(df['PC Ungraded (Raw)'], errors='coerce')
+    df['TCGplayer Raw Price'] = pd.to_numeric(df['TCGplayer Raw Price'], errors='coerce')
+    df['PC Grade 8'] = pd.to_numeric(df['PC Grade 8'], errors='coerce')
+    
+    # Calculate Average Ungraded Price (average of PC raw and TCGplayer raw)
+    # If one of them is missing, we can use the other, or if both are present we average.
+    # Let's average only when both are present, or handle missing values.
+    # The prompt says: "Average the pc ungraded price with the tcg player price"
+    df['Avg Ungraded'] = df[['PC Ungraded (Raw)', 'TCGplayer Raw Price']].mean(axis=1)
+    
+    # Subtract average from PSA 8 price
+    df['PSA 8 Spread'] = df['PC Grade 8'] - df['Avg Ungraded']
+    
+    # Filter for cards over $30 (using Avg Ungraded > 30 or TCGplayer > 30 or PC raw > 30)
+    # Let's define "over $30" as Avg Ungraded > 30
+    mask_over_30 = (df['PC Ungraded (Raw)'] > 30) | (df['TCGplayer Raw Price'] > 30)
+    over_30_df = df[mask_over_30].copy()
+    
+    # Sort by the PSA 8 Spread descending
+    over_30_df_sorted = over_30_df.sort_values(by='PSA 8 Spread', ascending=False)
+    
+    print(f"Found {len(over_30_df)} cards over $30.")
+    print("\nTop 15 cards by PSA 8 Spread (PSA 8 Price - Avg Ungraded):")
+    for idx, r in over_30_df_sorted.head(15).iterrows():
+        name = r['Product Name']
+        set_code = r['Card Number']
+        pc_raw = r['PC Ungraded (Raw)']
+        tcg_raw = r['TCGplayer Raw Price']
+        avg_raw = r['Avg Ungraded']
+        psa8 = r['PC Grade 8']
+        spread = r['PSA 8 Spread']
+        print(f"- {name} ({set_code}):")
+        print(f"  TCGplayer: ${tcg_raw:,.2f} | PC Raw: ${pc_raw:,.2f} | Avg Raw: ${avg_raw:,.2f}")
+        print(f"  PSA 8: ${psa8:,.2f} | Spread: ${spread:,.2f}")
+        
+    # Save the updated CSV to our local workspace
+    df.to_csv(CSV_PATH, index=False)
+    print(f"\nSaved updated CSV with 'Avg Ungraded' and 'PSA 8 Spread' columns to {CSV_PATH}")
+
+if __name__ == "__main__":
+    main()
